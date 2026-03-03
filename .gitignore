@@ -1,0 +1,31 @@
+# Unreal Engine generated folders
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Build artifacts
+Build/*
+!Build/**/*.ico
+!Build/**/*.png
+!Build/**/*.bmp
+!Build/**/*.wav
+
+# Visual Studio / Rider / JetBrains
+.vs/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.DotSettings.user
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local tooling / workspace metadata
+.codex/
+.specify/
