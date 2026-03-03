@@ -58,9 +58,12 @@ public:
     FLockstepPacketReceivedSignature OnPacketReceived;
 
 private:
+    // UDP 收包回调：解析包后写入缓冲并广播给蓝图。
     void HandleDatagram(const FArrayReaderPtr& Data, const FIPv4Endpoint& Endpoint);
+    // 仅处理与本地状态相关的包（WELCOME/START/INPUT_BUNDLE）。
     void HandleIncomingPacket(const FLockstepPacket& Packet);
 
+    // 每帧聚合后的输入缓冲：FrameIndex -> 所有玩家输入。
     TMap<int32, TArray<FLockstepInputFrame>> FrameInputs;
 
     FSocket* Socket = nullptr;

@@ -25,6 +25,7 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
         return;
     }
 
+    // 固定步长仿真：渲染帧不稳定，逻辑帧固定。
     const float Step = 1.0f / FMath::Max(FixedFps, 1);
     Accumulator += DeltaTime;
 
@@ -40,9 +41,11 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
         TArray<FLockstepInputFrame> Inputs;
         if (!Lockstep->ConsumeFrameInputs(CurrentFrame, Inputs))
         {
+            // 没有凑齐该帧输入时停止推进，等待网络包补齐。
             break;
         }
 
+        // 只在这里触发 gameplay 执行，保证按帧有序。
         OnSimTick.Broadcast(CurrentFrame, Inputs);
         ++CurrentFrame;
         Accumulator -= Step;

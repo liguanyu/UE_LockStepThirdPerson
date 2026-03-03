@@ -4,6 +4,7 @@
 
 namespace
 {
+// 按原始字节写入 POD，保证 UE 客户端与独立 relay 的二进制协议一致。
 template <typename T>
 void WritePod(TArray<uint8>& Buffer, const T Value)
 {
@@ -28,6 +29,8 @@ bool ReadPod(const uint8*& Cursor, int32& Remaining, T& OutValue)
 
 bool FLockstepPacketCodec::Encode(const FLockstepPacket& Packet, TArray<uint8>& OutBytes)
 {
+    // 线性二进制布局：
+    // [PacketHeader][FrameCount][Frame0][Frame1]...
     OutBytes.Reset();
     OutBytes.Reserve(64 + Packet.Frames.Num() * 48);
 
@@ -42,6 +45,7 @@ bool FLockstepPacketCodec::Encode(const FLockstepPacket& Packet, TArray<uint8>& 
 
     for (const FLockstepInputFrame& Frame : Packet.Frames)
     {
+        // bool 在网络层统一编码为 uint8，避免不同编译器布局差异。
         const uint8 JumpPressed = Frame.bJumpPressed ? 1u : 0u;
 
         WritePod<int32>(OutBytes, Frame.FrameIndex);
@@ -91,6 +95,7 @@ bool FLockstepPacketCodec::Decode(const uint8* Data, int32 NumBytes, FLockstepPa
         return false;
     }
 
+    // 保护上限，防止异常包导致内存膨胀。
     if (FrameCount < 0 || FrameCount > 4096)
     {
         return false;

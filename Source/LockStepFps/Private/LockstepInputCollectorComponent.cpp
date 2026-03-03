@@ -27,6 +27,7 @@ FLockstepInputFrame ULockstepInputCollectorComponent::BuildInputFrame(
     const int32 InputDelayFrames) const
 {
     FLockstepInputFrame Frame;
+    // 输入延迟：把本地输入写到未来帧，减少网络抖动影响。
     Frame.FrameIndex = FrameIndex + FMath::Max(InputDelayFrames, 0);
     Frame.PlayerId = PlayerId;
     Frame.MoveAxis = MoveAxis;

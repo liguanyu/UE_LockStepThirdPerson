@@ -26,6 +26,7 @@ bool ULockstepSubsystem::Connect(const FString& InHost, const int32 InPort)
         return false;
     }
 
+    // 这里使用自建 UDP 通道，不使用 UE Replication。
     Socket = FUdpSocketBuilder(TEXT("LockstepClientSocket"))
         .AsReusable()
         .WithReceiveBufferSize(2 * 1024 * 1024)
@@ -109,6 +110,7 @@ bool ULockstepSubsystem::SendPacket(const FLockstepPacket& Packet)
 
 bool ULockstepSubsystem::SubmitLocalInputFrame(const FLockstepInputFrame& Frame)
 {
+    // 客户端只上传“输入帧”，不上传世界状态。
     FLockstepPacket Packet;
     Packet.Type = ELockstepPacketType::Input;
     Packet.SessionId = SessionId;
@@ -145,6 +147,7 @@ bool ULockstepSubsystem::ConsumeFrameInputs(const int32 FrameIndex, TArray<FLock
         return false;
     }
 
+    // 消费语义：拿走该帧数据后立即删除，避免重复执行同一帧。
     OutInputs = MoveTemp(*Existing);
     FrameInputs.Remove(FrameIndex);
     return true;
@@ -171,6 +174,7 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
 {
     if (Packet.Type == ELockstepPacketType::Welcome)
     {
+        // WELCOME 同步会话信息与分配好的 ClientId。
         SessionId = Packet.SessionId;
         ClientId = Packet.ClientId;
         if (Packet.FixedFps > 0)
@@ -182,6 +186,7 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
 
     if (Packet.Type == ELockstepPacketType::Start)
     {
+        // START 表示房间进入可推进阶段。
         SessionId = Packet.SessionId;
         if (Packet.FixedFps > 0)
         {
@@ -198,6 +203,7 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
     FScopeLock ScopeLock(&BufferMutex);
     for (const FLockstepInputFrame& Frame : Packet.Frames)
     {
+        // INPUT_BUNDLE 内通常是“同一帧的所有玩家输入”。
         TArray<FLockstepInputFrame>& Bucket = FrameInputs.FindOrAdd(Frame.FrameIndex);
         Bucket.Add(Frame);
     }

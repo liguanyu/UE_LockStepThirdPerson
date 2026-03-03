@@ -74,6 +74,7 @@ struct Client
 template <typename T>
 void WritePod(std::vector<uint8_t>& out, const T value)
 {
+    // 与 UE 客户端保持同一字节序列化方式（原样内存拷贝）。
     const auto* ptr = reinterpret_cast<const uint8_t*>(&value);
     out.insert(out.end(), ptr, ptr + sizeof(T));
 }
@@ -93,6 +94,7 @@ bool ReadPod(const uint8_t*& cursor, int& remaining, T& out)
 
 std::vector<uint8_t> Encode(const Packet& packet)
 {
+    // 包布局与 UE 的 FLockstepPacketCodec 一一对应。
     std::vector<uint8_t> out;
     out.reserve(64 + packet.frames.size() * 48);
 
@@ -152,6 +154,7 @@ std::optional<Packet> Decode(const uint8_t* data, const int length)
         return std::nullopt;
     }
 
+    // 防御性校验，避免异常数据撑爆内存。
     if (frameCount < 0 || frameCount > 4096)
     {
         return std::nullopt;
@@ -272,8 +275,11 @@ int main(int argc, char** argv)
               << " maxPlayers=" << maxPlayers
               << " fps=" << fps << "\n";
 
+    // clientId -> 客户端会话
     std::unordered_map<int32_t, Client> clients;
+    // 端点( ip:port ) -> clientId
     std::unordered_map<uint64_t, int32_t> endpointToClient;
+    // frameIndex -> (playerId -> inputFrame)
     std::unordered_map<int32_t, std::unordered_map<int32_t, InputFrame>> frameBuckets;
     int32_t nextClientId = 1;
     const int32_t sessionId = 1;
@@ -338,6 +344,7 @@ int main(int argc, char** argv)
                 std::cout << "\n";
             }
 
+            // HELLO -> WELCOME：分配 clientId 并下发会话参数。
             Packet welcome;
             welcome.type = PacketType::Welcome;
             welcome.sessionId = sessionId;
@@ -382,6 +389,7 @@ int main(int argc, char** argv)
             if (allReady && !started)
             {
                 started = true;
+                // 所有客户端 READY 后统一广播 START，避免有人提前推进。
                 Packet start;
                 start.type = PacketType::Start;
                 start.sessionId = sessionId;
@@ -408,6 +416,7 @@ int main(int argc, char** argv)
 
                 if (bucket.size() == clients.size() && !clients.empty())
                 {
+                    // 当某帧收齐所有玩家输入时，打包成 INPUT_BUNDLE 广播。
                     Packet bundle;
                     bundle.type = PacketType::InputBundle;
                     bundle.sessionId = sessionId;

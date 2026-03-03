@@ -21,9 +21,12 @@ struct FLockstepInputFrame
 {
     GENERATED_BODY()
 
+    // 目标仿真帧号。通常本地输入会写入 (当前帧 + 输入延迟帧)，
+    // 用于吸收网络抖动，避免因为单帧丢包而卡顿。
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
     int32 FrameIndex = 0;
 
+    // 由 relay server 在 WELCOME 中分配的玩家 ID。
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
     int32 PlayerId = -1;
 
@@ -48,6 +51,7 @@ struct FLockstepPacket
 {
     GENERATED_BODY()
 
+    // 网络包类型：握手 / 输入数据 / 心跳。
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
     ELockstepPacketType Type = ELockstepPacketType::Hello;
 
