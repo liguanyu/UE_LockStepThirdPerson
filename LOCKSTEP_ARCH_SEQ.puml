@@ -3,53 +3,53 @@ skinparam shadowing false
 skinparam backgroundColor white
 skinparam packageStyle rectangle
 
-title Lockstep FPS - Architecture and Sequence
+title Lockstep FPS - 架构与时序
 
 ' =========================
-' Architecture
+' 架构图
 ' =========================
-package "UE Client" as UEClient {
-  [Enhanced Input]
-  [ULockstepInputCollectorComponent]
-  [ULockstepSubsystem\n(UDP client + frame buffer)]
-  [ULockstepSimulationDriverSubsystem\n(Fixed Step)]
+package "UE 客户端" as UEClient {
+  [Enhanced Input 输入]
+  [ULockstepInputCollectorComponent\n输入采集组件]
+  [ULockstepSubsystem\n(UDP 客户端 + 帧输入缓冲)]
+  [ULockstepSimulationDriverSubsystem\n(固定步长驱动)]
   [BP_ThirdPersonCharacter\nApplyInputFrame()]
 }
 
 node "Lockstep Relay Server\n(Tools/LockstepRelayServer)" as Relay {
-  [Session Manager\nHELLO/WELCOME/READY/START]
-  [Frame Aggregator\ncollect INPUT by frame]
-  [Broadcaster\nsend INPUT_BUNDLE]
+  [会话管理器\nHELLO/WELCOME/READY/START]
+  [帧聚合器\n按帧收集 INPUT]
+  [广播器\n发送 INPUT_BUNDLE]
 }
 
-database "Lockstep Config\nConfig/DefaultGame.ini" as Cfg
+database "Lockstep 配置\nConfig/DefaultGame.ini" as Cfg
 
-[Enhanced Input] --> [ULockstepInputCollectorComponent] : sample move/look/jump
-[ULockstepInputCollectorComponent] --> [ULockstepSubsystem\n(UDP client + frame buffer)] : SubmitLocalInputFrame()
-[ULockstepSubsystem\n(UDP client + frame buffer)] --> Relay : UDP INPUT
-Relay --> [ULockstepSubsystem\n(UDP client + frame buffer)] : UDP INPUT_BUNDLE
-[ULockstepSubsystem\n(UDP client + frame buffer)] --> [ULockstepSimulationDriverSubsystem\n(Fixed Step)] : ConsumeFrameInputs(frame)
-[ULockstepSimulationDriverSubsystem\n(Fixed Step)] --> [BP_ThirdPersonCharacter\nApplyInputFrame()] : OnSimTick(frame, inputs)
-Cfg --> [ULockstepSubsystem\n(UDP client + frame buffer)] : ServerHost/ServerPort
-Cfg --> [ULockstepSimulationDriverSubsystem\n(Fixed Step)] : FPS/InputDelayFrames
+[Enhanced Input 输入] --> [ULockstepInputCollectorComponent\n输入采集组件] : 采样 move/look/jump
+[ULockstepInputCollectorComponent\n输入采集组件] --> [ULockstepSubsystem\n(UDP 客户端 + 帧输入缓冲)] : SubmitLocalInputFrame()
+[ULockstepSubsystem\n(UDP 客户端 + 帧输入缓冲)] --> Relay : UDP INPUT
+Relay --> [ULockstepSubsystem\n(UDP 客户端 + 帧输入缓冲)] : UDP INPUT_BUNDLE
+[ULockstepSubsystem\n(UDP 客户端 + 帧输入缓冲)] --> [ULockstepSimulationDriverSubsystem\n(固定步长驱动)] : ConsumeFrameInputs(frame)
+[ULockstepSimulationDriverSubsystem\n(固定步长驱动)] --> [BP_ThirdPersonCharacter\nApplyInputFrame()] : OnSimTick(frame, inputs)
+Cfg --> [ULockstepSubsystem\n(UDP 客户端 + 帧输入缓冲)] : ServerHost/ServerPort
+Cfg --> [ULockstepSimulationDriverSubsystem\n(固定步长驱动)] : FPS/InputDelayFrames
 
 newpage
 
 ' =========================
-' Sequence
+' 时序图
 ' =========================
 
-title Lockstep Handshake and Frame Advance
+title Lockstep 握手与逐帧推进
 
-actor Player as P
-participant "UE Client A\nULockstepSubsystem" as A
-participant "UE Client B\nULockstepSubsystem" as B
+actor 玩家 as P
+participant "UE 客户端 A\nULockstepSubsystem" as A
+participant "UE 客户端 B\nULockstepSubsystem" as B
 participant "Relay Server" as S
-participant "Sim Driver A\nFixed Tick" as SA
-participant "Sim Driver B\nFixed Tick" as SB
+participant "仿真驱动 A\nFixed Tick" as SA
+participant "仿真驱动 B\nFixed Tick" as SB
 
-P -> A : Launch game / ConnectFromConfig()
-P -> B : Launch game / ConnectFromConfig()
+P -> A : 启动游戏 / ConnectFromConfig()
+P -> B : 启动游戏 / ConnectFromConfig()
 
 A -> S : HELLO
 B -> S : HELLO
@@ -61,13 +61,13 @@ B -> S : READY
 S --> A : START
 S --> B : START
 
-loop Every local render frame
-  A -> A : collect input\nBuildInputFrame(frame+delay)
-  B -> B : collect input\nBuildInputFrame(frame+delay)
+loop 每个本地渲染帧
+  A -> A : 采集输入\nBuildInputFrame(frame+delay)
+  B -> B : 采集输入\nBuildInputFrame(frame+delay)
   A -> S : INPUT(frame N, player A)
   B -> S : INPUT(frame N, player B)
 
-  S -> S : aggregate by frame N\nwait until all players arrived
+  S -> S : 按帧 N 聚合\n等待所有玩家输入齐全
   S --> A : INPUT_BUNDLE(frame N, all players)
   S --> B : INPUT_BUNDLE(frame N, all players)
 
@@ -78,7 +78,7 @@ loop Every local render frame
 end
 
 note over A,S
-Server is relay-only in v1:\nno authoritative world state,\nno rollback, no correction.
+V1 中服务器仅做 relay：\n无权威世界状态，\n无回滚、无纠正。
 end note
 
 @enduml

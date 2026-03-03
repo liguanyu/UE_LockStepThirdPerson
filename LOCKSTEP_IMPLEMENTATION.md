@@ -1,11 +1,11 @@
-# Lockstep Implementation Notes
+# Lockstep 实现说明
 
-## What was added
-- UE runtime module at `Source/LockStepFps`.
-- Standalone relay server at `Tools/LockstepRelayServer`.
-- Lockstep defaults in `Config/DefaultGame.ini` under `[Lockstep]`.
+## 已新增内容
+- UE 运行时模块：`Source/LockStepFps`。
+- 独立 relay server：`Tools/LockstepRelayServer`。
+- Lockstep 默认配置：`Config/DefaultGame.ini` 下的 `[Lockstep]`。
 
-## Relay server build/run
+## Relay server 构建与运行
 ```bash
 cd Tools/LockstepRelayServer
 cmake -S . -B build
@@ -13,28 +13,28 @@ cmake --build build --config Release
 ./build/LockstepRelayServer --host 0.0.0.0 --port 7777 --max-players 4 --fps 60
 ```
 
-On Windows with multi-config generators:
+Windows 多配置生成器下：
 ```bash
 cmake --build build --config Release
 ./build/Release/LockstepRelayServer.exe --host 0.0.0.0 --port 7777 --max-players 4 --fps 60
 ```
 
-## UE side usage
-1. Add `ULockstepInputCollectorComponent` to your player controller or pawn.
-2. Route Enhanced Input callbacks to:
+## UE 侧使用方式
+1. 在 `PlayerController` 或 `Pawn` 上添加 `ULockstepInputCollectorComponent`。
+2. 将 Enhanced Input 回调接到：
    - `SetMoveAxis`
    - `SetLookAxis`
    - `SetJumpPressed`
    - `SetActionBits`
-3. Use `ULockstepSubsystem::ConnectFromConfig()` (or `Connect(host, port)`).
-4. Send handshake packets from game flow:
-   - `HELLO` after connect
-   - `READY` after local initialization
-5. Start fixed simulation via `ULockstepSimulationDriverSubsystem::StartSimulation()`.
-6. Bind to `OnSimTick(FrameIndex, Inputs)` and apply inputs to your character logic inside that callback.
+3. 调用 `ULockstepSubsystem::ConnectFromConfig()`（或 `Connect(host, port)`）。
+4. 在游戏流程中发送握手包：
+   - 连接后发送 `HELLO`
+   - 本地初始化完成后发送 `READY`
+5. 通过 `ULockstepSimulationDriverSubsystem::StartSimulation()` 启动固定步长仿真。
+6. 绑定 `OnSimTick(FrameIndex, Inputs)`，在该回调中将输入应用到角色逻辑。
 
-## Current scope
-- Relay server only aggregates and broadcasts input frames.
-- No rollback.
-- No server-authoritative state.
-- No anti-cheat.
+## 当前范围
+- Relay server 仅做输入帧汇聚与广播。
+- 不做回滚。
+- 不做服务器权威状态。
+- 不做反作弊。
