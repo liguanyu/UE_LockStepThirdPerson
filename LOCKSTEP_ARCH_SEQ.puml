@@ -1,0 +1,84 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam packageStyle rectangle
+
+title Lockstep FPS - Architecture and Sequence
+
+' =========================
+' Architecture
+' =========================
+package "UE Client" as UEClient {
+  [Enhanced Input]
+  [ULockstepInputCollectorComponent]
+  [ULockstepSubsystem\n(UDP client + frame buffer)]
+  [ULockstepSimulationDriverSubsystem\n(Fixed Step)]
+  [BP_ThirdPersonCharacter\nApplyInputFrame()]
+}
+
+node "Lockstep Relay Server\n(Tools/LockstepRelayServer)" as Relay {
+  [Session Manager\nHELLO/WELCOME/READY/START]
+  [Frame Aggregator\ncollect INPUT by frame]
+  [Broadcaster\nsend INPUT_BUNDLE]
+}
+
+database "Lockstep Config\nConfig/DefaultGame.ini" as Cfg
+
+[Enhanced Input] --> [ULockstepInputCollectorComponent] : sample move/look/jump
+[ULockstepInputCollectorComponent] --> [ULockstepSubsystem\n(UDP client + frame buffer)] : SubmitLocalInputFrame()
+[ULockstepSubsystem\n(UDP client + frame buffer)] --> Relay : UDP INPUT
+Relay --> [ULockstepSubsystem\n(UDP client + frame buffer)] : UDP INPUT_BUNDLE
+[ULockstepSubsystem\n(UDP client + frame buffer)] --> [ULockstepSimulationDriverSubsystem\n(Fixed Step)] : ConsumeFrameInputs(frame)
+[ULockstepSimulationDriverSubsystem\n(Fixed Step)] --> [BP_ThirdPersonCharacter\nApplyInputFrame()] : OnSimTick(frame, inputs)
+Cfg --> [ULockstepSubsystem\n(UDP client + frame buffer)] : ServerHost/ServerPort
+Cfg --> [ULockstepSimulationDriverSubsystem\n(Fixed Step)] : FPS/InputDelayFrames
+
+newpage
+
+' =========================
+' Sequence
+' =========================
+
+title Lockstep Handshake and Frame Advance
+
+actor Player as P
+participant "UE Client A\nULockstepSubsystem" as A
+participant "UE Client B\nULockstepSubsystem" as B
+participant "Relay Server" as S
+participant "Sim Driver A\nFixed Tick" as SA
+participant "Sim Driver B\nFixed Tick" as SB
+
+P -> A : Launch game / ConnectFromConfig()
+P -> B : Launch game / ConnectFromConfig()
+
+A -> S : HELLO
+B -> S : HELLO
+S --> A : WELCOME(clientId=A, startFrame=0, fps)
+S --> B : WELCOME(clientId=B, startFrame=0, fps)
+
+A -> S : READY
+B -> S : READY
+S --> A : START
+S --> B : START
+
+loop Every local render frame
+  A -> A : collect input\nBuildInputFrame(frame+delay)
+  B -> B : collect input\nBuildInputFrame(frame+delay)
+  A -> S : INPUT(frame N, player A)
+  B -> S : INPUT(frame N, player B)
+
+  S -> S : aggregate by frame N\nwait until all players arrived
+  S --> A : INPUT_BUNDLE(frame N, all players)
+  S --> B : INPUT_BUNDLE(frame N, all players)
+
+  A -> SA : ConsumeFrameInputs(N)
+  B -> SB : ConsumeFrameInputs(N)
+  SA -> SA : OnSimTick(N, inputs)
+  SB -> SB : OnSimTick(N, inputs)
+end
+
+note over A,S
+Server is relay-only in v1:\nno authoritative world state,\nno rollback, no correction.
+end note
+
+@enduml

@@ -3,6 +3,9 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+Plugins/*/DerivedDataCache/
 
 # Build artifacts
 Build/*
@@ -15,6 +18,9 @@ Build/*
 .vs/
 .idea/
 *.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
 *.suo
 *.opensdf
 *.sdf
@@ -29,3 +35,14 @@ Thumbs.db
 # Local tooling / workspace metadata
 .codex/
 .specify/
+
+# IDE-integrated UE plugin (local developer tooling)
+Plugins/Developer/RiderLink/
+
+# Local relay server build output
+Tools/LockstepRelayServer/build/
+Tools/LockstepRelayServer/LockstepRelayServer
+Tools/LockstepRelayServer/out/
+Tools/LockstepRelayServer/.vs/
+Tools/LockstepRelayServer/CMakeUserPresets.json
+Tools/LockstepRelayServer/CMakeSettings.json
