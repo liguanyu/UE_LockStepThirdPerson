@@ -9,6 +9,8 @@
 #include "LockstepSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLockstepPacketReceivedSignature, const FLockstepPacket&, Packet);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLockstepPlayerSpawnSignature, const FLockstepPlayerDesc&, PlayerDesc);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLockstepRoomClosedSignature, int32, ReasonCode);
 
 UCLASS()
 class LOCKSTEPFPS_API ULockstepSubsystem : public UGameInstanceSubsystem
@@ -34,7 +36,13 @@ public:
     bool SendHello();
 
     UFUNCTION(BlueprintCallable, Category = "Lockstep")
+    bool SendJoinRequest();
+
+    UFUNCTION(BlueprintCallable, Category = "Lockstep")
     bool SendReady();
+
+    UFUNCTION(BlueprintCallable, Category = "Lockstep")
+    bool SendPlayerSpawnAck(int32 PlayerId);
 
     UFUNCTION(BlueprintCallable, Category = "Lockstep")
     bool SubmitLocalInputFrame(const FLockstepInputFrame& Frame);
@@ -57,6 +65,12 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Lockstep")
     FLockstepPacketReceivedSignature OnPacketReceived;
 
+    UPROPERTY(BlueprintAssignable, Category = "Lockstep")
+    FLockstepPlayerSpawnSignature OnPlayerSpawn;
+
+    UPROPERTY(BlueprintAssignable, Category = "Lockstep")
+    FLockstepRoomClosedSignature OnRoomClosed;
+
 private:
     // UDP 收包回调：解析包后写入缓冲并广播给蓝图。
     void HandleDatagram(const FArrayReaderPtr& Data, const FIPv4Endpoint& Endpoint);
@@ -76,4 +90,5 @@ private:
     int32 ClientId = -1;
     int32 SessionId = 0;
     int32 FixedFps = 60;
+    int32 RosterVersion = 0;
 };

@@ -8,12 +8,35 @@ enum class ELockstepPacketType : uint8
 {
     Hello = 0,
     Welcome,
+    JoinRequest,
+    JoinAccept,
+    PlayerSpawn,
+    PlayerSpawnAck,
     Ready,
     Start,
     Input,
     InputBundle,
+    RoomClosed,
     Ping,
     Pong
+};
+
+USTRUCT(BlueprintType)
+struct FLockstepPlayerDesc
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    int32 PlayerId = -1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    int32 PawnTypeId = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    FVector SpawnLocation = FVector::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    FRotator SpawnRotation = FRotator::ZeroRotator;
 };
 
 USTRUCT(BlueprintType)
@@ -72,6 +95,16 @@ struct FLockstepPacket
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
     int32 FixedFps = 60;
+
+    // 0 表示成功，非 0 表示错误码（例如 Join 被拒绝）。
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    int32 ResultCode = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    int32 RosterVersion = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    TArray<FLockstepPlayerDesc> Players;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
     TArray<FLockstepInputFrame> Frames;

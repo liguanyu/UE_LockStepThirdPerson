@@ -30,9 +30,9 @@ bool ReadPod(const uint8*& Cursor, int32& Remaining, T& OutValue)
 bool FLockstepPacketCodec::Encode(const FLockstepPacket& Packet, TArray<uint8>& OutBytes)
 {
     // 线性二进制布局：
-    // [PacketHeader][FrameCount][Frame0][Frame1]...
+    // [PacketHeader][ResultCode][RosterVersion][PlayerCount][Players...][FrameCount][Frames...]
     OutBytes.Reset();
-    OutBytes.Reserve(64 + Packet.Frames.Num() * 48);
+    OutBytes.Reserve(96 + Packet.Players.Num() * 40 + Packet.Frames.Num() * 48);
 
     WritePod<uint8>(OutBytes, static_cast<uint8>(Packet.Type));
     WritePod<int32>(OutBytes, Packet.SessionId);
@@ -41,6 +41,22 @@ bool FLockstepPacketCodec::Encode(const FLockstepPacket& Packet, TArray<uint8>& 
     WritePod<int32>(OutBytes, Packet.EndFrame);
     WritePod<int32>(OutBytes, Packet.Seed);
     WritePod<int32>(OutBytes, Packet.FixedFps);
+    WritePod<int32>(OutBytes, Packet.ResultCode);
+    WritePod<int32>(OutBytes, Packet.RosterVersion);
+    WritePod<int32>(OutBytes, Packet.Players.Num());
+
+    for (const FLockstepPlayerDesc& Player : Packet.Players)
+    {
+        WritePod<int32>(OutBytes, Player.PlayerId);
+        WritePod<int32>(OutBytes, Player.PawnTypeId);
+        WritePod<float>(OutBytes, Player.SpawnLocation.X);
+        WritePod<float>(OutBytes, Player.SpawnLocation.Y);
+        WritePod<float>(OutBytes, Player.SpawnLocation.Z);
+        WritePod<float>(OutBytes, Player.SpawnRotation.Roll);
+        WritePod<float>(OutBytes, Player.SpawnRotation.Pitch);
+        WritePod<float>(OutBytes, Player.SpawnRotation.Yaw);
+    }
+
     WritePod<int32>(OutBytes, Packet.Frames.Num());
 
     for (const FLockstepInputFrame& Frame : Packet.Frames)
@@ -84,9 +100,48 @@ bool FLockstepPacketCodec::Decode(const uint8* Data, int32 NumBytes, FLockstepPa
         !ReadPod<int32>(Cursor, Remaining, OutPacket.StartFrame) ||
         !ReadPod<int32>(Cursor, Remaining, OutPacket.EndFrame) ||
         !ReadPod<int32>(Cursor, Remaining, OutPacket.Seed) ||
-        !ReadPod<int32>(Cursor, Remaining, OutPacket.FixedFps))
+        !ReadPod<int32>(Cursor, Remaining, OutPacket.FixedFps) ||
+        !ReadPod<int32>(Cursor, Remaining, OutPacket.ResultCode) ||
+        !ReadPod<int32>(Cursor, Remaining, OutPacket.RosterVersion))
     {
         return false;
+    }
+
+    int32 PlayerCount = 0;
+    if (!ReadPod<int32>(Cursor, Remaining, PlayerCount))
+    {
+        return false;
+    }
+
+    if (PlayerCount < 0 || PlayerCount > 256)
+    {
+        return false;
+    }
+
+    OutPacket.Players.Reset(PlayerCount);
+    for (int32 Index = 0; Index < PlayerCount; ++Index)
+    {
+        FLockstepPlayerDesc Player;
+        float X = 0.0f;
+        float Y = 0.0f;
+        float Z = 0.0f;
+        float Roll = 0.0f;
+        float Pitch = 0.0f;
+        float Yaw = 0.0f;
+        if (!ReadPod<int32>(Cursor, Remaining, Player.PlayerId) ||
+            !ReadPod<int32>(Cursor, Remaining, Player.PawnTypeId) ||
+            !ReadPod<float>(Cursor, Remaining, X) ||
+            !ReadPod<float>(Cursor, Remaining, Y) ||
+            !ReadPod<float>(Cursor, Remaining, Z) ||
+            !ReadPod<float>(Cursor, Remaining, Roll) ||
+            !ReadPod<float>(Cursor, Remaining, Pitch) ||
+            !ReadPod<float>(Cursor, Remaining, Yaw))
+        {
+            return false;
+        }
+        Player.SpawnLocation = FVector(X, Y, Z);
+        Player.SpawnRotation = FRotator(Pitch, Yaw, Roll);
+        OutPacket.Players.Add(Player);
     }
 
     int32 FrameCount = 0;

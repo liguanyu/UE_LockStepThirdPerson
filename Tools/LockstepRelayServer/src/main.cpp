@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #ifdef _WIN32
@@ -31,12 +32,29 @@ enum class PacketType : uint8_t
 {
     Hello = 0,
     Welcome = 1,
-    Ready = 2,
-    Start = 3,
-    Input = 4,
-    InputBundle = 5,
-    Ping = 6,
-    Pong = 7
+    JoinRequest = 2,
+    JoinAccept = 3,
+    PlayerSpawn = 4,
+    PlayerSpawnAck = 5,
+    Ready = 6,
+    Start = 7,
+    Input = 8,
+    InputBundle = 9,
+    RoomClosed = 10,
+    Ping = 11,
+    Pong = 12
+};
+
+struct PlayerDesc
+{
+    int32_t playerId = -1;
+    int32_t pawnTypeId = 0;
+    float spawnX = 0.0f;
+    float spawnY = 0.0f;
+    float spawnZ = 0.0f;
+    float roll = 0.0f;
+    float pitch = 0.0f;
+    float yaw = 0.0f;
 };
 
 struct InputFrame
@@ -61,20 +79,25 @@ struct Packet
     int32_t endFrame = 0;
     int32_t seed = 0;
     int32_t fixedFps = 60;
+    int32_t resultCode = 0;
+    int32_t rosterVersion = 0;
+    std::vector<PlayerDesc> players;
     std::vector<InputFrame> frames;
 };
 
 struct Client
 {
     int32_t clientId = -1;
+    int32_t playerId = -1;
     sockaddr_in addr {};
+    bool joined = false;
     bool ready = false;
+    std::unordered_set<int32_t> ackedPlayers;
 };
 
 template <typename T>
 void WritePod(std::vector<uint8_t>& out, const T value)
 {
-    // 与 UE 客户端保持同一字节序列化方式（原样内存拷贝）。
     const auto* ptr = reinterpret_cast<const uint8_t*>(&value);
     out.insert(out.end(), ptr, ptr + sizeof(T));
 }
@@ -94,9 +117,8 @@ bool ReadPod(const uint8_t*& cursor, int& remaining, T& out)
 
 std::vector<uint8_t> Encode(const Packet& packet)
 {
-    // 包布局与 UE 的 FLockstepPacketCodec 一一对应。
     std::vector<uint8_t> out;
-    out.reserve(64 + packet.frames.size() * 48);
+    out.reserve(96 + packet.players.size() * 40 + packet.frames.size() * 48);
 
     WritePod<uint8_t>(out, static_cast<uint8_t>(packet.type));
     WritePod<int32_t>(out, packet.sessionId);
@@ -105,8 +127,23 @@ std::vector<uint8_t> Encode(const Packet& packet)
     WritePod<int32_t>(out, packet.endFrame);
     WritePod<int32_t>(out, packet.seed);
     WritePod<int32_t>(out, packet.fixedFps);
-    WritePod<int32_t>(out, static_cast<int32_t>(packet.frames.size()));
+    WritePod<int32_t>(out, packet.resultCode);
+    WritePod<int32_t>(out, packet.rosterVersion);
 
+    WritePod<int32_t>(out, static_cast<int32_t>(packet.players.size()));
+    for (const PlayerDesc& player : packet.players)
+    {
+        WritePod<int32_t>(out, player.playerId);
+        WritePod<int32_t>(out, player.pawnTypeId);
+        WritePod<float>(out, player.spawnX);
+        WritePod<float>(out, player.spawnY);
+        WritePod<float>(out, player.spawnZ);
+        WritePod<float>(out, player.roll);
+        WritePod<float>(out, player.pitch);
+        WritePod<float>(out, player.yaw);
+    }
+
+    WritePod<int32_t>(out, static_cast<int32_t>(packet.frames.size()));
     for (const InputFrame& frame : packet.frames)
     {
         WritePod<int32_t>(out, frame.frameIndex);
@@ -141,21 +178,41 @@ std::optional<Packet> Decode(const uint8_t* data, const int length)
         !ReadPod<int32_t>(cursor, remaining, packet.startFrame) ||
         !ReadPod<int32_t>(cursor, remaining, packet.endFrame) ||
         !ReadPod<int32_t>(cursor, remaining, packet.seed) ||
-        !ReadPod<int32_t>(cursor, remaining, packet.fixedFps))
+        !ReadPod<int32_t>(cursor, remaining, packet.fixedFps) ||
+        !ReadPod<int32_t>(cursor, remaining, packet.resultCode) ||
+        !ReadPod<int32_t>(cursor, remaining, packet.rosterVersion))
     {
         return std::nullopt;
     }
 
     packet.type = static_cast<PacketType>(type);
 
-    int32_t frameCount = 0;
-    if (!ReadPod<int32_t>(cursor, remaining, frameCount))
+    int32_t playerCount = 0;
+    if (!ReadPod<int32_t>(cursor, remaining, playerCount) || playerCount < 0 || playerCount > 256)
     {
         return std::nullopt;
     }
 
-    // 防御性校验，避免异常数据撑爆内存。
-    if (frameCount < 0 || frameCount > 4096)
+    packet.players.reserve(static_cast<size_t>(playerCount));
+    for (int i = 0; i < playerCount; ++i)
+    {
+        PlayerDesc player;
+        if (!ReadPod<int32_t>(cursor, remaining, player.playerId) ||
+            !ReadPod<int32_t>(cursor, remaining, player.pawnTypeId) ||
+            !ReadPod<float>(cursor, remaining, player.spawnX) ||
+            !ReadPod<float>(cursor, remaining, player.spawnY) ||
+            !ReadPod<float>(cursor, remaining, player.spawnZ) ||
+            !ReadPod<float>(cursor, remaining, player.roll) ||
+            !ReadPod<float>(cursor, remaining, player.pitch) ||
+            !ReadPod<float>(cursor, remaining, player.yaw))
+        {
+            return std::nullopt;
+        }
+        packet.players.push_back(player);
+    }
+
+    int32_t frameCount = 0;
+    if (!ReadPod<int32_t>(cursor, remaining, frameCount) || frameCount < 0 || frameCount > 4096)
     {
         return std::nullopt;
     }
@@ -202,6 +259,17 @@ void PrintEndpoint(const sockaddr_in& addr)
     char buffer[64] = {0};
     inet_ntop(AF_INET, &addr.sin_addr, buffer, sizeof(buffer));
     std::cout << buffer << ":" << ntohs(addr.sin_port);
+}
+
+void SendPacketTo(SocketHandle socketFd, const Packet& packet, const sockaddr_in& addr)
+{
+    const auto bytes = Encode(packet);
+    sendto(socketFd,
+           reinterpret_cast<const char*>(bytes.data()),
+           static_cast<int>(bytes.size()),
+           0,
+           reinterpret_cast<const sockaddr*>(&addr),
+           sizeof(addr));
 }
 }
 
@@ -275,22 +343,77 @@ int main(int argc, char** argv)
               << " maxPlayers=" << maxPlayers
               << " fps=" << fps << "\n";
 
-    // clientId -> 客户端会话
-    // 用于广播时遍历所有在线客户端。
     std::unordered_map<int32_t, Client> clients;
-    // 端点( ip:port ) -> clientId
-    // 收到 INPUT/READY/PING 时通过端点反查玩家身份。
     std::unordered_map<uint64_t, int32_t> endpointToClient;
-    // frameIndex -> (playerId -> inputFrame)
-    // 这是“按帧收集输入”的核心结构：
-    // - 外层 key: 帧号 N
-    // - 内层 key: 玩家 playerId
-    // - value: 该玩家在帧 N 的输入
-    // 内层使用 map 而不是数组，便于动态玩家数量和缺帧判断。
+    std::unordered_map<int32_t, PlayerDesc> roster;
     std::unordered_map<int32_t, std::unordered_map<int32_t, InputFrame>> frameBuckets;
+
     int32_t nextClientId = 1;
+    int32_t nextPlayerId = 1;
+    int32_t rosterVersion = 0;
     const int32_t sessionId = 1;
     bool started = false;
+
+    auto broadcastToJoined = [&](const Packet& packet)
+    {
+        for (const auto& [id, client] : clients)
+        {
+            if (client.joined)
+            {
+                SendPacketTo(socketFd, packet, client.addr);
+            }
+        }
+    };
+
+    auto buildPlayerSpawnPacket = [&]()
+    {
+        Packet spawnPacket;
+        spawnPacket.type = PacketType::PlayerSpawn;
+        spawnPacket.sessionId = sessionId;
+        spawnPacket.fixedFps = fps;
+        spawnPacket.rosterVersion = rosterVersion;
+        spawnPacket.players.reserve(roster.size());
+        for (const auto& [playerId, playerDesc] : roster)
+        {
+            spawnPacket.players.push_back(playerDesc);
+        }
+        std::sort(spawnPacket.players.begin(), spawnPacket.players.end(), [](const PlayerDesc& a, const PlayerDesc& b)
+        {
+            return a.playerId < b.playerId;
+        });
+        return spawnPacket;
+    };
+
+    auto canStartMatch = [&]()
+    {
+        if (roster.empty())
+        {
+            return false;
+        }
+
+        for (const auto& [id, client] : clients)
+        {
+            if (!client.joined)
+            {
+                continue;
+            }
+
+            if (!client.ready)
+            {
+                return false;
+            }
+
+            for (const auto& [playerId, playerDesc] : roster)
+            {
+                if (!client.ackedPlayers.count(playerId))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    };
 
     std::array<uint8_t, 65535> buffer {};
     while (true)
@@ -323,7 +446,6 @@ int main(int argc, char** argv)
         Packet incoming = decoded.value();
         const uint64_t endpointKey = (static_cast<uint64_t>(fromAddr.sin_addr.s_addr) << 16u) | fromAddr.sin_port;
 
-        // HELLO 分支仅负责“建连与分配身份”，不参与输入收集。
         if (incoming.type == PacketType::Hello)
         {
             if (clients.size() >= static_cast<size_t>(maxPlayers))
@@ -343,16 +465,13 @@ int main(int argc, char** argv)
                 Client client;
                 client.clientId = assignedId;
                 client.addr = fromAddr;
-                client.ready = false;
                 clients[assignedId] = client;
                 endpointToClient[endpointKey] = assignedId;
-
                 std::cout << "Client connected id=" << assignedId << " addr=";
                 PrintEndpoint(fromAddr);
                 std::cout << "\n";
             }
 
-            // HELLO -> WELCOME：分配 clientId 并下发会话参数。
             Packet welcome;
             welcome.type = PacketType::Welcome;
             welcome.sessionId = sessionId;
@@ -361,13 +480,11 @@ int main(int argc, char** argv)
             welcome.endFrame = 0;
             welcome.seed = 12345;
             welcome.fixedFps = fps;
-            const auto bytesOut = Encode(welcome);
-            sendto(socketFd, reinterpret_cast<const char*>(bytesOut.data()), static_cast<int>(bytesOut.size()), 0,
-                   reinterpret_cast<const sockaddr*>(&fromAddr), sizeof(fromAddr));
+            welcome.rosterVersion = rosterVersion;
+            SendPacketTo(socketFd, welcome, fromAddr);
             continue;
         }
 
-        // 从这里开始的消息都要求来源已注册，否则直接丢弃。
         auto endpointIt = endpointToClient.find(endpointKey);
         if (endpointIt == endpointToClient.end())
         {
@@ -381,85 +498,119 @@ int main(int argc, char** argv)
             continue;
         }
 
-        if (incoming.type == PacketType::Ready)
-        {
-            clientIt->second.ready = true;
+        Client& client = clientIt->second;
 
-            // READY 用于屏障同步：
-            // 只有所有人都 READY 才允许进入正式逐帧推进。
-            bool allReady = !clients.empty();
-            for (const auto& [id, client] : clients)
+        if (incoming.type == PacketType::JoinRequest)
+        {
+            Packet joinAccept;
+            joinAccept.type = PacketType::JoinAccept;
+            joinAccept.sessionId = sessionId;
+            joinAccept.clientId = clientId;
+            joinAccept.fixedFps = fps;
+            joinAccept.rosterVersion = rosterVersion;
+
+            if (started)
             {
-                if (!client.ready)
-                {
-                    allReady = false;
-                    break;
-                }
+                joinAccept.resultCode = 1; // 游戏已开始
+                SendPacketTo(socketFd, joinAccept, client.addr);
+                continue;
             }
 
-            if (allReady && !started)
+            joinAccept.resultCode = 0;
+            if (!client.joined)
+            {
+                client.joined = true;
+                client.ready = false;
+                client.ackedPlayers.clear();
+
+                client.playerId = nextPlayerId++;
+                PlayerDesc player;
+                player.playerId = client.playerId;
+                player.pawnTypeId = 0;
+                player.spawnX = 300.0f * static_cast<float>(client.playerId - 1);
+                player.spawnY = 0.0f;
+                player.spawnZ = 100.0f;
+                player.roll = 0.0f;
+                player.pitch = 0.0f;
+                player.yaw = 0.0f;
+                roster[player.playerId] = player;
+                rosterVersion += 1;
+                joinAccept.rosterVersion = rosterVersion;
+            }
+
+            SendPacketTo(socketFd, joinAccept, client.addr);
+            const Packet spawnPacket = buildPlayerSpawnPacket();
+            broadcastToJoined(spawnPacket);
+            continue;
+        }
+
+        if (incoming.type == PacketType::PlayerSpawnAck)
+        {
+            for (const PlayerDesc& player : incoming.players)
+            {
+                if (roster.find(player.playerId) != roster.end())
+                {
+                    client.ackedPlayers.insert(player.playerId);
+                }
+            }
+            continue;
+        }
+
+        if (incoming.type == PacketType::Ready)
+        {
+            if (!client.joined || started)
+            {
+                continue;
+            }
+
+            client.ready = true;
+            if (canStartMatch())
             {
                 started = true;
-                // 所有客户端 READY 后统一广播 START，避免有人提前推进。
                 Packet start;
                 start.type = PacketType::Start;
                 start.sessionId = sessionId;
                 start.fixedFps = fps;
-                const auto startBytes = Encode(start);
-
-                for (const auto& [id, client] : clients)
-                {
-                    sendto(socketFd, reinterpret_cast<const char*>(startBytes.data()), static_cast<int>(startBytes.size()), 0,
-                           reinterpret_cast<const sockaddr*>(&client.addr), sizeof(client.addr));
-                }
-                std::cout << "All clients ready. START broadcast.\n";
+                start.rosterVersion = rosterVersion;
+                broadcastToJoined(start);
+                std::cout << "All players ready. START broadcast. roster=" << roster.size() << "\n";
             }
             continue;
         }
 
         if (incoming.type == PacketType::Input)
         {
-            // 一个 INPUT 包里允许带多帧，这里逐帧处理。
+            if (!started || !client.joined || client.playerId < 0)
+            {
+                continue;
+            }
+
             for (InputFrame frame : incoming.frames)
             {
-                // 服务端以“连接身份”为准覆盖 playerId，避免客户端伪造。
-                frame.playerId = clientId;
-
-                // 取出该帧的桶。如果不存在则自动创建。
+                frame.playerId = client.playerId;
                 auto& bucket = frameBuckets[frame.frameIndex];
+                bucket[client.playerId] = frame;
 
-                // 同一玩家同一帧重复上报时，后到覆盖先到。
-                // 这使重发包天然幂等，不会导致同帧重复计数。
-                bucket[clientId] = frame;
-
-                // 收齐条件：当前帧桶中玩家数 == 在线客户端数。
-                // 注意：当前实现没有超时/补默认输入策略，没收齐就持续等待。
-                if (bucket.size() == clients.size() && !clients.empty())
+                if (bucket.size() == roster.size() && !roster.empty())
                 {
-                    // 当某帧收齐所有玩家输入时，打包成 INPUT_BUNDLE 广播。
                     Packet bundle;
                     bundle.type = PacketType::InputBundle;
                     bundle.sessionId = sessionId;
                     bundle.startFrame = frame.frameIndex;
                     bundle.endFrame = frame.frameIndex;
                     bundle.fixedFps = fps;
+                    bundle.rosterVersion = rosterVersion;
                     bundle.frames.reserve(bucket.size());
                     for (const auto& [pid, frameValue] : bucket)
                     {
                         bundle.frames.push_back(frameValue);
                     }
-                    // 广播前按 playerId 排序，保证客户端收到的顺序稳定，
-                    // 便于调试和后续做一致性校验。
-                    std::sort(bundle.frames.begin(), bundle.frames.end(),
-                              [](const InputFrame& a, const InputFrame& b) { return a.playerId < b.playerId; });
-
-                    const auto bundleBytes = Encode(bundle);
-                    for (const auto& [id, client] : clients)
+                    std::sort(bundle.frames.begin(), bundle.frames.end(), [](const InputFrame& a, const InputFrame& b)
                     {
-                        sendto(socketFd, reinterpret_cast<const char*>(bundleBytes.data()), static_cast<int>(bundleBytes.size()), 0,
-                               reinterpret_cast<const sockaddr*>(&client.addr), sizeof(client.addr));
-                    }
-                    // 该帧已完成广播，立即清理桶，避免内存增长与重复广播。
+                        return a.playerId < b.playerId;
+                    });
+
+                    broadcastToJoined(bundle);
                     frameBuckets.erase(frame.frameIndex);
                 }
             }
@@ -472,9 +623,7 @@ int main(int argc, char** argv)
             pong.type = PacketType::Pong;
             pong.sessionId = sessionId;
             pong.clientId = clientId;
-            const auto pongBytes = Encode(pong);
-            sendto(socketFd, reinterpret_cast<const char*>(pongBytes.data()), static_cast<int>(pongBytes.size()), 0,
-                   reinterpret_cast<const sockaddr*>(&clientIt->second.addr), sizeof(clientIt->second.addr));
+            SendPacketTo(socketFd, pong, client.addr);
             continue;
         }
     }

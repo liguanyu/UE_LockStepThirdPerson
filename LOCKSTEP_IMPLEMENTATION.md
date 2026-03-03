@@ -29,12 +29,16 @@ cmake --build build --config Release
 3. 调用 `ULockstepSubsystem::ConnectFromConfig()`（或 `Connect(host, port)`）。
 4. 在游戏流程中发送握手包：
    - 连接后发送 `HELLO`
+   - 收到 `WELCOME` 后发送 `JoinRequest`
+   - 收到并处理 `PlayerSpawn` 后，客户端发送 `PlayerSpawnAck`
    - 本地初始化完成后发送 `READY`
-5. 通过 `ULockstepSimulationDriverSubsystem::StartSimulation()` 启动固定步长仿真。
-6. 绑定 `OnSimTick(FrameIndex, Inputs)`，在该回调中将输入应用到角色逻辑。
+5. 收到 `START` 后，通过 `ULockstepSimulationDriverSubsystem::StartSimulation()` 启动固定步长仿真。
+6. 为可控角色实现 `ULockstepControllablePawnInterface::ApplyLockstepInput`。
+7. `ULockstepSimulationDriverSubsystem` 会在每帧按 `playerId` 查找 Actor 并调用 `ApplyLockstepInput`。
 
 ## 当前范围
 - Relay server 仅做输入帧汇聚与广播。
+- 开局前支持多玩家加入并广播统一 `PlayerSpawn`。
 - 不做回滚。
 - 不做服务器权威状态。
 - 不做反作弊。

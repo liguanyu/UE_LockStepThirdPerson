@@ -2,7 +2,10 @@
 
 #include "Engine/GameInstance.h"
 #include "Misc/ConfigCacheIni.h"
+#include "GameFramework/Actor.h"
 #include "LockstepSubsystem.h"
+#include "LockstepPlayerRegistrySubsystem.h"
+#include "LockstepControllablePawnInterface.h"
 
 void ULockstepSimulationDriverSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -31,6 +34,7 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
 
     UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
     ULockstepSubsystem* Lockstep = GameInstance ? GameInstance->GetSubsystem<ULockstepSubsystem>() : nullptr;
+    ULockstepPlayerRegistrySubsystem* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULockstepPlayerRegistrySubsystem>() : nullptr;
     if (!Lockstep)
     {
         return;
@@ -45,7 +49,30 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
             break;
         }
 
-        // 只在这里触发 gameplay 执行，保证按帧有序。
+        // 先按 playerId 路由输入到对应 Actor，确保“谁的输入作用到谁的角色”。
+        if (Registry)
+        {
+            for (const FLockstepInputFrame& Input : Inputs)
+            {
+                AActor* TargetActor = Registry->FindPlayerActor(Input.PlayerId);
+                if (!IsValid(TargetActor))
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("No actor bound for PlayerId=%d at Frame=%d"), Input.PlayerId, CurrentFrame);
+                    continue;
+                }
+
+                if (TargetActor->GetClass()->ImplementsInterface(ULockstepControllablePawnInterface::StaticClass()))
+                {
+                    ILockstepControllablePawnInterface::Execute_ApplyLockstepInput(TargetActor, Input);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Verbose, TEXT("Actor for PlayerId=%d does not implement lockstep interface"), Input.PlayerId);
+                }
+            }
+        }
+
+        // 仍保留广播事件，便于蓝图额外监听。
         OnSimTick.Broadcast(CurrentFrame, Inputs);
         ++CurrentFrame;
         Accumulator -= Step;

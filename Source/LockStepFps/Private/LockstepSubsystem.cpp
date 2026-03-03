@@ -4,6 +4,10 @@
 #include "Misc/ConfigCacheIni.h"
 #include "SocketSubsystem.h"
 #include "LockstepPacketCodec.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "LockstepPlayerRegistrySubsystem.h"
 
 void ULockstepSubsystem::Deinitialize()
 {
@@ -53,6 +57,7 @@ bool ULockstepSubsystem::Connect(const FString& InHost, const int32 InPort)
     ClientId = -1;
     SessionId = 0;
     FixedFps = 60;
+    RosterVersion = 0;
     return true;
 }
 
@@ -86,6 +91,7 @@ void ULockstepSubsystem::Disconnect()
     ClientId = -1;
     SessionId = 0;
     FixedFps = 60;
+    RosterVersion = 0;
 
     FScopeLock ScopeLock(&BufferMutex);
     FrameInputs.Reset();
@@ -128,12 +134,36 @@ bool ULockstepSubsystem::SendHello()
     return SendPacket(Packet);
 }
 
+bool ULockstepSubsystem::SendJoinRequest()
+{
+    FLockstepPacket Packet;
+    Packet.Type = ELockstepPacketType::JoinRequest;
+    Packet.SessionId = SessionId;
+    Packet.ClientId = ClientId;
+    return SendPacket(Packet);
+}
+
 bool ULockstepSubsystem::SendReady()
 {
     FLockstepPacket Packet;
     Packet.Type = ELockstepPacketType::Ready;
     Packet.SessionId = SessionId;
     Packet.ClientId = ClientId;
+    Packet.RosterVersion = RosterVersion;
+    return SendPacket(Packet);
+}
+
+bool ULockstepSubsystem::SendPlayerSpawnAck(const int32 PlayerId)
+{
+    FLockstepPacket Packet;
+    Packet.Type = ELockstepPacketType::PlayerSpawnAck;
+    Packet.SessionId = SessionId;
+    Packet.ClientId = ClientId;
+    Packet.RosterVersion = RosterVersion;
+
+    FLockstepPlayerDesc Ack;
+    Ack.PlayerId = PlayerId;
+    Packet.Players.Add(Ack);
     return SendPacket(Packet);
 }
 
@@ -181,6 +211,64 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
         {
             FixedFps = Packet.FixedFps;
         }
+        RosterVersion = Packet.RosterVersion;
+        return;
+    }
+
+    if (Packet.Type == ELockstepPacketType::JoinAccept)
+    {
+        RosterVersion = Packet.RosterVersion;
+        if (Packet.ResultCode != 0)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Join rejected. ResultCode=%d"), Packet.ResultCode);
+        }
+        return;
+    }
+
+    if (Packet.Type == ELockstepPacketType::PlayerSpawn)
+    {
+        RosterVersion = Packet.RosterVersion;
+
+        UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+        ULockstepPlayerRegistrySubsystem* Registry = World ? World->GetSubsystem<ULockstepPlayerRegistrySubsystem>() : nullptr;
+
+        for (const FLockstepPlayerDesc& PlayerDesc : Packet.Players)
+        {
+            OnPlayerSpawn.Broadcast(PlayerDesc);
+
+            if (Registry)
+            {
+                AActor* SpawnedActor = nullptr;
+                bool bBound = false;
+
+                // 本地玩家优先绑定现有 Pawn，避免与 GameMode 默认生成逻辑重复。
+                if (PlayerDesc.PlayerId == ClientId && World)
+                {
+                    if (APlayerController* LocalPC = World->GetFirstPlayerController())
+                    {
+                        if (AActor* ExistingPawn = LocalPC->GetPawn())
+                        {
+                            bBound = Registry->RegisterExistingPlayerActor(PlayerDesc.PlayerId, ExistingPawn);
+                            SpawnedActor = ExistingPawn;
+                        }
+                    }
+                }
+
+                if (!bBound)
+                {
+                    bBound = Registry->SpawnOrGetPlayerActor(PlayerDesc, SpawnedActor);
+                }
+
+                if (bBound)
+                {
+                    SendPlayerSpawnAck(PlayerDesc.PlayerId);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("Failed to spawn player actor for PlayerId=%d"), PlayerDesc.PlayerId);
+                }
+            }
+        }
         return;
     }
 
@@ -192,6 +280,13 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
         {
             FixedFps = Packet.FixedFps;
         }
+        RosterVersion = Packet.RosterVersion;
+        return;
+    }
+
+    if (Packet.Type == ELockstepPacketType::RoomClosed)
+    {
+        OnRoomClosed.Broadcast(Packet.ResultCode);
         return;
     }
 
