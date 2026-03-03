@@ -102,13 +102,17 @@ bool FLockstepPacketCodec::Decode(const uint8* Data, int32 NumBytes, FLockstepPa
     {
         FLockstepInputFrame Frame;
         uint8 JumpPressed = 0;
+        float MoveX = 0.0f;
+        float MoveY = 0.0f;
+        float LookX = 0.0f;
+        float LookY = 0.0f;
 
         if (!ReadPod<int32>(Cursor, Remaining, Frame.FrameIndex) ||
             !ReadPod<int32>(Cursor, Remaining, Frame.PlayerId) ||
-            !ReadPod<float>(Cursor, Remaining, Frame.MoveAxis.X) ||
-            !ReadPod<float>(Cursor, Remaining, Frame.MoveAxis.Y) ||
-            !ReadPod<float>(Cursor, Remaining, Frame.LookAxis.X) ||
-            !ReadPod<float>(Cursor, Remaining, Frame.LookAxis.Y) ||
+            !ReadPod<float>(Cursor, Remaining, MoveX) ||
+            !ReadPod<float>(Cursor, Remaining, MoveY) ||
+            !ReadPod<float>(Cursor, Remaining, LookX) ||
+            !ReadPod<float>(Cursor, Remaining, LookY) ||
             !ReadPod<uint8>(Cursor, Remaining, JumpPressed) ||
             !ReadPod<int32>(Cursor, Remaining, Frame.ActionBits) ||
             !ReadPod<int64>(Cursor, Remaining, Frame.Timestamp))
@@ -116,6 +120,10 @@ bool FLockstepPacketCodec::Decode(const uint8* Data, int32 NumBytes, FLockstepPa
             return false;
         }
 
+        Frame.MoveAxis.X = MoveX;
+        Frame.MoveAxis.Y = MoveY;
+        Frame.LookAxis.X = LookX;
+        Frame.LookAxis.Y = LookY;
         Frame.bJumpPressed = JumpPressed != 0u;
         OutPacket.Frames.Add(Frame);
     }
