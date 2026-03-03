@@ -276,10 +276,17 @@ int main(int argc, char** argv)
               << " fps=" << fps << "\n";
 
     // clientId -> 客户端会话
+    // 用于广播时遍历所有在线客户端。
     std::unordered_map<int32_t, Client> clients;
     // 端点( ip:port ) -> clientId
+    // 收到 INPUT/READY/PING 时通过端点反查玩家身份。
     std::unordered_map<uint64_t, int32_t> endpointToClient;
     // frameIndex -> (playerId -> inputFrame)
+    // 这是“按帧收集输入”的核心结构：
+    // - 外层 key: 帧号 N
+    // - 内层 key: 玩家 playerId
+    // - value: 该玩家在帧 N 的输入
+    // 内层使用 map 而不是数组，便于动态玩家数量和缺帧判断。
     std::unordered_map<int32_t, std::unordered_map<int32_t, InputFrame>> frameBuckets;
     int32_t nextClientId = 1;
     const int32_t sessionId = 1;
@@ -316,6 +323,7 @@ int main(int argc, char** argv)
         Packet incoming = decoded.value();
         const uint64_t endpointKey = (static_cast<uint64_t>(fromAddr.sin_addr.s_addr) << 16u) | fromAddr.sin_port;
 
+        // HELLO 分支仅负责“建连与分配身份”，不参与输入收集。
         if (incoming.type == PacketType::Hello)
         {
             if (clients.size() >= static_cast<size_t>(maxPlayers))
@@ -359,6 +367,7 @@ int main(int argc, char** argv)
             continue;
         }
 
+        // 从这里开始的消息都要求来源已注册，否则直接丢弃。
         auto endpointIt = endpointToClient.find(endpointKey);
         if (endpointIt == endpointToClient.end())
         {
@@ -376,6 +385,8 @@ int main(int argc, char** argv)
         {
             clientIt->second.ready = true;
 
+            // READY 用于屏障同步：
+            // 只有所有人都 READY 才允许进入正式逐帧推进。
             bool allReady = !clients.empty();
             for (const auto& [id, client] : clients)
             {
@@ -408,12 +419,21 @@ int main(int argc, char** argv)
 
         if (incoming.type == PacketType::Input)
         {
+            // 一个 INPUT 包里允许带多帧，这里逐帧处理。
             for (InputFrame frame : incoming.frames)
             {
+                // 服务端以“连接身份”为准覆盖 playerId，避免客户端伪造。
                 frame.playerId = clientId;
+
+                // 取出该帧的桶。如果不存在则自动创建。
                 auto& bucket = frameBuckets[frame.frameIndex];
+
+                // 同一玩家同一帧重复上报时，后到覆盖先到。
+                // 这使重发包天然幂等，不会导致同帧重复计数。
                 bucket[clientId] = frame;
 
+                // 收齐条件：当前帧桶中玩家数 == 在线客户端数。
+                // 注意：当前实现没有超时/补默认输入策略，没收齐就持续等待。
                 if (bucket.size() == clients.size() && !clients.empty())
                 {
                     // 当某帧收齐所有玩家输入时，打包成 INPUT_BUNDLE 广播。
@@ -428,6 +448,8 @@ int main(int argc, char** argv)
                     {
                         bundle.frames.push_back(frameValue);
                     }
+                    // 广播前按 playerId 排序，保证客户端收到的顺序稳定，
+                    // 便于调试和后续做一致性校验。
                     std::sort(bundle.frames.begin(), bundle.frames.end(),
                               [](const InputFrame& a, const InputFrame& b) { return a.playerId < b.playerId; });
 
@@ -437,6 +459,7 @@ int main(int argc, char** argv)
                         sendto(socketFd, reinterpret_cast<const char*>(bundleBytes.data()), static_cast<int>(bundleBytes.size()), 0,
                                reinterpret_cast<const sockaddr*>(&client.addr), sizeof(client.addr));
                     }
+                    // 该帧已完成广播，立即清理桶，避免内存增长与重复广播。
                     frameBuckets.erase(frame.frameIndex);
                 }
             }
