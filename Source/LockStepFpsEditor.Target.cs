@@ -6,7 +6,7 @@ public class LockStepFpsEditorTarget : TargetRules
     public LockStepFpsEditorTarget(TargetInfo Target) : base(Target)
     {
         Type = TargetType.Editor;
-        DefaultBuildSettings = BuildSettingsVersion.V5;
+        DefaultBuildSettings = BuildSettingsVersion.V6;
         IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
         ExtraModuleNames.Add("LockStepFps");
     }
