@@ -28,6 +28,12 @@ constexpr SocketHandle kInvalidSocket = -1;
 
 namespace
 {
+// 直接修改这里控制一局的目标玩家数。
+// 例如：
+// - 1 表示单人局，1 人 ready 后即可开始
+// - 4 表示四人局，必须 4 人全部加入并 ready 后才开始
+constexpr int kRequiredPlayers = 1;
+
 enum class PacketType : uint8_t
 {
     Hello = 0,
@@ -277,7 +283,6 @@ int main(int argc, char** argv)
 {
     std::string host = "0.0.0.0";
     int port = 7777;
-    int maxPlayers = 4;
     int fps = 60;
 
     for (int i = 1; i < argc; ++i)
@@ -291,17 +296,13 @@ int main(int argc, char** argv)
         {
             port = std::stoi(argv[++i]);
         }
-        else if (arg == "--max-players" && i + 1 < argc)
-        {
-            maxPlayers = std::max(1, std::stoi(argv[++i]));
-        }
         else if (arg == "--fps" && i + 1 < argc)
         {
             fps = std::max(1, std::stoi(argv[++i]));
         }
         else if (arg == "--help")
         {
-            std::cout << "Usage: LockstepRelayServer [--host 0.0.0.0] [--port 7777] [--max-players 4] [--fps 60]\n";
+            std::cout << "Usage: LockstepRelayServer [--host 0.0.0.0] [--port 7777] [--fps 60]\n";
             return 0;
         }
     }
@@ -340,7 +341,7 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Lockstep relay started on " << host << ":" << port
-              << " maxPlayers=" << maxPlayers
+              << " requiredPlayers=" << kRequiredPlayers
               << " fps=" << fps << "\n";
 
     std::unordered_map<int32_t, Client> clients;
@@ -386,7 +387,8 @@ int main(int argc, char** argv)
 
     auto canStartMatch = [&]()
     {
-        if (roster.empty())
+        // 只有达到目标人数时才允许开局，避免“四人房一人 ready 就开局”。
+        if (static_cast<int>(roster.size()) != kRequiredPlayers)
         {
             return false;
         }
@@ -448,7 +450,7 @@ int main(int argc, char** argv)
 
         if (incoming.type == PacketType::Hello)
         {
-            if (clients.size() >= static_cast<size_t>(maxPlayers))
+            if (clients.size() >= static_cast<size_t>(kRequiredPlayers))
             {
                 continue;
             }
@@ -512,6 +514,13 @@ int main(int argc, char** argv)
             if (started)
             {
                 joinAccept.resultCode = 1; // 游戏已开始
+                SendPacketTo(socketFd, joinAccept, client.addr);
+                continue;
+            }
+
+            if (!client.joined && static_cast<int>(roster.size()) >= kRequiredPlayers)
+            {
+                joinAccept.resultCode = 2; // 房间已满
                 SendPacketTo(socketFd, joinAccept, client.addr);
                 continue;
             }
