@@ -10,5 +10,6 @@ add_executable(LockstepRelayServer
 )
 
 if(WIN32)
+    target_compile_options(LockstepRelayServer PRIVATE /utf-8)
     target_link_libraries(LockstepRelayServer PRIVATE ws2_32)
 endif()

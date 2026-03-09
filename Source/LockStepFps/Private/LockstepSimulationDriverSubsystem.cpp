@@ -6,6 +6,7 @@
 #include "LockstepSubsystem.h"
 #include "LockstepPlayerRegistrySubsystem.h"
 #include "LockstepControllablePawnInterface.h"
+#include "LogHelper.h"
 
 void ULockstepSimulationDriverSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -72,6 +73,7 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
             }
         }
 
+        // PrintLog(FString::Printf(TEXT("Accumulator=%f"), Accumulator));
         // 仍保留广播事件，便于蓝图额外监听。
         OnSimTick.Broadcast(CurrentFrame, Inputs);
         ++CurrentFrame;
@@ -86,6 +88,8 @@ TStatId ULockstepSimulationDriverSubsystem::GetStatId() const
 
 void ULockstepSimulationDriverSubsystem::StartSimulation()
 {
+    PrintLog(TEXT("StartSimulation"));
+
     bRunning = true;
     Accumulator = 0.0f;
     CurrentFrame = 0;

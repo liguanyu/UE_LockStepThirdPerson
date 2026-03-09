@@ -23,6 +23,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Lockstep")
     void SetActionBits(int32 InActionBits);
 
+    // 供蓝图在提交输入帧成功后手动清空当前缓存输入。
+    UFUNCTION(BlueprintCallable, Category = "Lockstep")
+    void ClearCachedInputState();
+
     UFUNCTION(BlueprintCallable, Category = "Lockstep")
     FLockstepInputFrame BuildInputFrame(int32 FrameIndex, int32 PlayerId, int32 InputDelayFrames) const;
 

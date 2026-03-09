@@ -1,5 +1,6 @@
 #include "LockstepInputCollectorComponent.h"
 #include "Misc/DateTime.h"
+#include "LogHelper.h"
 
 void ULockstepInputCollectorComponent::SetMoveAxis(const FVector2D& InMoveAxis)
 {
@@ -19,6 +20,14 @@ void ULockstepInputCollectorComponent::SetJumpPressed(const bool bPressed)
 void ULockstepInputCollectorComponent::SetActionBits(const int32 InActionBits)
 {
     ActionBits = InActionBits;
+}
+
+void ULockstepInputCollectorComponent::ClearCachedInputState()
+{
+    MoveAxis = FVector2D::ZeroVector;
+    LookAxis = FVector2D::ZeroVector;
+    bJumpPressed = false;
+    ActionBits = 0;
 }
 
 FLockstepInputFrame ULockstepInputCollectorComponent::BuildInputFrame(

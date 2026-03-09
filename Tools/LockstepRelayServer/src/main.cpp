@@ -33,6 +33,7 @@ namespace
 // - 1 表示单人局，1 人 ready 后即可开始
 // - 4 表示四人局，必须 4 人全部加入并 ready 后才开始
 constexpr int kRequiredPlayers = 1;
+constexpr bool kLogInputFrames = false;
 
 enum class PacketType : uint8_t
 {
@@ -50,6 +51,41 @@ enum class PacketType : uint8_t
     Ping = 11,
     Pong = 12
 };
+
+const char* ToString(const PacketType type)
+{
+    switch (type)
+    {
+    case PacketType::Hello:
+        return "Hello";
+    case PacketType::Welcome:
+        return "Welcome";
+    case PacketType::JoinRequest:
+        return "JoinRequest";
+    case PacketType::JoinAccept:
+        return "JoinAccept";
+    case PacketType::PlayerSpawn:
+        return "PlayerSpawn";
+    case PacketType::PlayerSpawnAck:
+        return "PlayerSpawnAck";
+    case PacketType::Ready:
+        return "Ready";
+    case PacketType::Start:
+        return "Start";
+    case PacketType::Input:
+        return "Input";
+    case PacketType::InputBundle:
+        return "InputBundle";
+    case PacketType::RoomClosed:
+        return "RoomClosed";
+    case PacketType::Ping:
+        return "Ping";
+    case PacketType::Pong:
+        return "Pong";
+    default:
+        return "Unknown";
+    }
+}
 
 struct PlayerDesc
 {
@@ -269,6 +305,14 @@ void PrintEndpoint(const sockaddr_in& addr)
 
 void SendPacketTo(SocketHandle socketFd, const Packet& packet, const sockaddr_in& addr)
 {
+    if (packet.type != PacketType::InputBundle)
+    {
+        std::cout << "send packet type " << ToString(packet.type)
+            << " (" << static_cast<int>(packet.type) << ") to ";
+        PrintEndpoint(addr);
+        std::cout << std::endl;
+    }
+
     const auto bytes = Encode(packet);
     sendto(socketFd,
            reinterpret_cast<const char*>(bytes.data()),
@@ -276,6 +320,22 @@ void SendPacketTo(SocketHandle socketFd, const Packet& packet, const sockaddr_in
            0,
            reinterpret_cast<const sockaddr*>(&addr),
            sizeof(addr));
+}
+
+void PrintInputFrame(const int32_t clientId, const InputFrame& frame)
+{
+    std::cout << "Input frame received"
+              << " clientId=" << clientId
+              << " playerId=" << frame.playerId
+              << " frameIndex=" << frame.frameIndex
+              << " moveX=" << frame.moveX
+              << " moveY=" << frame.moveY
+              << " lookX=" << frame.lookX
+              << " lookY=" << frame.lookY
+              << " jumpPressed=" << (frame.jumpPressed ? 1 : 0)
+              << " actionBits=" << frame.actionBits
+              << " timestamp=" << frame.timestamp
+              << "\n";
 }
 }
 
@@ -342,7 +402,8 @@ int main(int argc, char** argv)
 
     std::cout << "Lockstep relay started on " << host << ":" << port
               << " requiredPlayers=" << kRequiredPlayers
-              << " fps=" << fps << "\n";
+              << " fps=" << fps
+              << " logInput=" << (kLogInputFrames ? "on" : "off") << "\n";
 
     std::unordered_map<int32_t, Client> clients;
     std::unordered_map<uint64_t, int32_t> endpointToClient;
@@ -447,6 +508,12 @@ int main(int argc, char** argv)
 
         Packet incoming = decoded.value();
         const uint64_t endpointKey = (static_cast<uint64_t>(fromAddr.sin_addr.s_addr) << 16u) | fromAddr.sin_port;
+
+        if (incoming.type != PacketType::Input)
+        {
+            std::cout << "recv incoming type " << ToString(incoming.type)
+                << " (" << static_cast<int>(incoming.type) << ")" << std::endl;
+        }
 
         if (incoming.type == PacketType::Hello)
         {
@@ -597,6 +664,10 @@ int main(int argc, char** argv)
             for (InputFrame frame : incoming.frames)
             {
                 frame.playerId = client.playerId;
+                if (kLogInputFrames)
+                {
+                    PrintInputFrame(clientId, frame);
+                }
                 auto& bucket = frameBuckets[frame.frameIndex];
                 bucket[client.playerId] = frame;
 

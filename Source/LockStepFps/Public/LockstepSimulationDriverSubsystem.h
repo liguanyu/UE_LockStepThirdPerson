@@ -34,6 +34,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Lockstep")
     FLockstepSimTickSignature OnSimTick;
 
+    UFUNCTION(BlueprintPure, Category = "Lockstep")
+    bool IsRunning() const { return bRunning; }
+    
 private:
     UPROPERTY(Config)
     int32 FixedFps = 60;

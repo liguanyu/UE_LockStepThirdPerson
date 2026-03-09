@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "LockstepPlayerRegistrySubsystem.h"
+#include "LogHelper.h"
 
 void ULockstepSubsystem::Deinitialize()
 {
@@ -116,6 +117,8 @@ bool ULockstepSubsystem::SendPacket(const FLockstepPacket& Packet)
 
 bool ULockstepSubsystem::SubmitLocalInputFrame(const FLockstepInputFrame& Frame)
 {
+    // PrintLog(FString::Printf(TEXT("SubmitLocalInputFrame, %d"), Frame.FrameIndex));
+    
     // 客户端只上传“输入帧”，不上传世界状态。
     FLockstepPacket Packet;
     Packet.Type = ELockstepPacketType::Input;
@@ -136,6 +139,8 @@ bool ULockstepSubsystem::SendHello()
 
 bool ULockstepSubsystem::SendJoinRequest()
 {
+    PrintLog(TEXT("SendJoinRequest"));
+
     FLockstepPacket Packet;
     Packet.Type = ELockstepPacketType::JoinRequest;
     Packet.SessionId = SessionId;
@@ -145,6 +150,8 @@ bool ULockstepSubsystem::SendJoinRequest()
 
 bool ULockstepSubsystem::SendReady()
 {
+    PrintLog(TEXT("SendReady"));
+    
     FLockstepPacket Packet;
     Packet.Type = ELockstepPacketType::Ready;
     Packet.SessionId = SessionId;
@@ -202,6 +209,15 @@ void ULockstepSubsystem::HandleDatagram(const FArrayReaderPtr& Data, const FIPv4
 
 void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
 {
+    if (Packet.Type != ELockstepPacketType::InputBundle)
+    {
+        const UEnum* PacketTypeEnum = StaticEnum<ELockstepPacketType>();
+        const FString PacketTypeName = PacketTypeEnum != nullptr
+            ? PacketTypeEnum->GetNameStringByValue(static_cast<int64>(Packet.Type))
+            : TEXT("Unknown");
+        PrintLog(FString::Printf(TEXT("recv packet type %s (%d)"), *PacketTypeName, static_cast<uint8>(Packet.Type)));
+    }
+    
     if (Packet.Type == ELockstepPacketType::Welcome)
     {
         // WELCOME 同步会话信息与分配好的 ClientId。
