@@ -1,6 +1,7 @@
 #include "LockstepPlayerRegistrySubsystem.h"
 
 #include "Engine/World.h"
+#include "Misc/ScopeExit.h"
 
 bool ULockstepPlayerRegistrySubsystem::RegisterExistingPlayerActor(const int32 PlayerId, AActor* Actor)
 {
@@ -28,6 +29,12 @@ bool ULockstepPlayerRegistrySubsystem::SpawnOrGetPlayerActor(const FLockstepPlay
         return IsValid(OutActor);
     }
 
+    if (PendingSpawnPlayerIds.Contains(PlayerDesc.PlayerId))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Rejected recursive player spawn for PlayerId=%d"), PlayerDesc.PlayerId);
+        return false;
+    }
+
     UWorld* World = GetWorld();
     if (!World)
     {
@@ -40,6 +47,12 @@ bool ULockstepPlayerRegistrySubsystem::SpawnOrGetPlayerActor(const FLockstepPlay
         UE_LOG(LogTemp, Error, TEXT("Lockstep spawn failed. Invalid PlayerPawnClassPath: %s"), *PlayerPawnClassPath);
         return false;
     }
+
+    PendingSpawnPlayerIds.Add(PlayerDesc.PlayerId);
+    ON_SCOPE_EXIT
+    {
+        PendingSpawnPlayerIds.Remove(PlayerDesc.PlayerId);
+    };
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;

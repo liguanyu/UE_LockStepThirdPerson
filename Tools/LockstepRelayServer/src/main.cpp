@@ -32,7 +32,7 @@ namespace
 // 例如：
 // - 1 表示单人局，1 人 ready 后即可开始
 // - 4 表示四人局，必须 4 人全部加入并 ready 后才开始
-constexpr int kRequiredPlayers = 1;
+constexpr int kRequiredPlayers = 2;
 constexpr bool kLogInputFrames = false;
 
 enum class PacketType : uint8_t

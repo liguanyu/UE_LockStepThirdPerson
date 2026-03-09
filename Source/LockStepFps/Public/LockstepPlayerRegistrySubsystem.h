@@ -32,4 +32,6 @@ private:
 
     UPROPERTY()
     TMap<int32, TObjectPtr<AActor>> PlayerActorMap;
+
+    TSet<int32> PendingSpawnPlayerIds;
 };

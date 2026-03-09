@@ -1,6 +1,7 @@
 #include "LockstepSubsystem.h"
 
 #include "IPAddress.h"
+#include "Async/Async.h"
 #include "Misc/ConfigCacheIni.h"
 #include "SocketSubsystem.h"
 #include "LockstepPacketCodec.h"
@@ -203,8 +204,24 @@ void ULockstepSubsystem::HandleDatagram(const FArrayReaderPtr& Data, const FIPv4
         return;
     }
 
-    HandleIncomingPacket(Packet);
-    OnPacketReceived.Broadcast(Packet);
+    if (IsInGameThread())
+    {
+        HandleIncomingPacket(Packet);
+        OnPacketReceived.Broadcast(Packet);
+        return;
+    }
+
+    TWeakObjectPtr<ULockstepSubsystem> WeakThis(this);
+    AsyncTask(ENamedThreads::GameThread, [WeakThis, Packet]()
+    {
+        if (!WeakThis.IsValid())
+        {
+            return;
+        }
+
+        WeakThis->HandleIncomingPacket(Packet);
+        WeakThis->OnPacketReceived.Broadcast(Packet);
+    });
 }
 
 void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
@@ -250,8 +267,6 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
 
         for (const FLockstepPlayerDesc& PlayerDesc : Packet.Players)
         {
-            OnPlayerSpawn.Broadcast(PlayerDesc);
-
             if (Registry)
             {
                 AActor* SpawnedActor = nullptr;
@@ -277,12 +292,17 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
 
                 if (bBound)
                 {
+                    OnPlayerSpawn.Broadcast(PlayerDesc);
                     SendPlayerSpawnAck(PlayerDesc.PlayerId);
                 }
                 else
                 {
                     UE_LOG(LogTemp, Error, TEXT("Failed to spawn player actor for PlayerId=%d"), PlayerDesc.PlayerId);
                 }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Missing player registry subsystem while handling PlayerSpawn for PlayerId=%d"), PlayerDesc.PlayerId);
             }
         }
         return;
