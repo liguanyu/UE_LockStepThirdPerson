@@ -13,6 +13,7 @@ Build/*
 !Build/**/*.png
 !Build/**/*.bmp
 !Build/**/*.wav
+output/*
 
 # Visual Studio / Rider / JetBrains
 .vs/
