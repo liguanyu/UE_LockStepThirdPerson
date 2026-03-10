@@ -32,7 +32,7 @@ bool FLockstepPacketCodec::Encode(const FLockstepPacket& Packet, TArray<uint8>& 
     // 线性二进制布局：
     // [PacketHeader][ResultCode][RosterVersion][PlayerCount][Players...][FrameCount][Frames...]
     OutBytes.Reset();
-    OutBytes.Reserve(96 + Packet.Players.Num() * 40 + Packet.Frames.Num() * 48);
+    OutBytes.Reserve(96 + Packet.Players.Num() * 44 + Packet.Frames.Num() * 48);
 
     WritePod<uint8>(OutBytes, static_cast<uint8>(Packet.Type));
     WritePod<int32>(OutBytes, Packet.SessionId);
@@ -47,6 +47,7 @@ bool FLockstepPacketCodec::Encode(const FLockstepPacket& Packet, TArray<uint8>& 
 
     for (const FLockstepPlayerDesc& Player : Packet.Players)
     {
+        WritePod<int32>(OutBytes, Player.ClientId);
         WritePod<int32>(OutBytes, Player.PlayerId);
         WritePod<int32>(OutBytes, Player.PawnTypeId);
         WritePod<float>(OutBytes, Player.SpawnLocation.X);
@@ -128,7 +129,8 @@ bool FLockstepPacketCodec::Decode(const uint8* Data, int32 NumBytes, FLockstepPa
         float Roll = 0.0f;
         float Pitch = 0.0f;
         float Yaw = 0.0f;
-        if (!ReadPod<int32>(Cursor, Remaining, Player.PlayerId) ||
+        if (!ReadPod<int32>(Cursor, Remaining, Player.ClientId) ||
+            !ReadPod<int32>(Cursor, Remaining, Player.PlayerId) ||
             !ReadPod<int32>(Cursor, Remaining, Player.PawnTypeId) ||
             !ReadPod<float>(Cursor, Remaining, X) ||
             !ReadPod<float>(Cursor, Remaining, Y) ||

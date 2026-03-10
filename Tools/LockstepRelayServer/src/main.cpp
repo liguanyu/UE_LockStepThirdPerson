@@ -89,6 +89,7 @@ const char* ToString(const PacketType type)
 
 struct PlayerDesc
 {
+    int32_t clientId = -1;
     int32_t playerId = -1;
     int32_t pawnTypeId = 0;
     float spawnX = 0.0f;
@@ -160,7 +161,7 @@ bool ReadPod(const uint8_t*& cursor, int& remaining, T& out)
 std::vector<uint8_t> Encode(const Packet& packet)
 {
     std::vector<uint8_t> out;
-    out.reserve(96 + packet.players.size() * 40 + packet.frames.size() * 48);
+    out.reserve(96 + packet.players.size() * 44 + packet.frames.size() * 48);
 
     WritePod<uint8_t>(out, static_cast<uint8_t>(packet.type));
     WritePod<int32_t>(out, packet.sessionId);
@@ -175,6 +176,7 @@ std::vector<uint8_t> Encode(const Packet& packet)
     WritePod<int32_t>(out, static_cast<int32_t>(packet.players.size()));
     for (const PlayerDesc& player : packet.players)
     {
+        WritePod<int32_t>(out, player.clientId);
         WritePod<int32_t>(out, player.playerId);
         WritePod<int32_t>(out, player.pawnTypeId);
         WritePod<float>(out, player.spawnX);
@@ -239,7 +241,8 @@ std::optional<Packet> Decode(const uint8_t* data, const int length)
     for (int i = 0; i < playerCount; ++i)
     {
         PlayerDesc player;
-        if (!ReadPod<int32_t>(cursor, remaining, player.playerId) ||
+        if (!ReadPod<int32_t>(cursor, remaining, player.clientId) ||
+            !ReadPod<int32_t>(cursor, remaining, player.playerId) ||
             !ReadPod<int32_t>(cursor, remaining, player.pawnTypeId) ||
             !ReadPod<float>(cursor, remaining, player.spawnX) ||
             !ReadPod<float>(cursor, remaining, player.spawnY) ||
@@ -601,6 +604,7 @@ int main(int argc, char** argv)
 
                 client.playerId = nextPlayerId++;
                 PlayerDesc player;
+                player.clientId = client.clientId;
                 player.playerId = client.playerId;
                 player.pawnTypeId = 0;
                 player.spawnX = 300.0f * static_cast<float>(client.playerId - 1);

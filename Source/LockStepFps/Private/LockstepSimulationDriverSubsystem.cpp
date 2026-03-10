@@ -62,6 +62,7 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
                     continue;
                 }
 
+                PrintLog(FString::Printf(TEXT("Applying input for PlayerId=%d at Frame=%d, moveX=%f"), Input.PlayerId, CurrentFrame, Input.MoveAxis.X));
                 if (TargetActor->GetClass()->ImplementsInterface(ULockstepControllablePawnInterface::StaticClass()))
                 {
                     ILockstepControllablePawnInterface::Execute_ApplyLockstepInput(TargetActor, Input);

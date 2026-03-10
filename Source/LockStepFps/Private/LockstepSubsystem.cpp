@@ -269,11 +269,12 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
         {
             if (Registry)
             {
+                FLockstepPlayerDesc ResolvedPlayerDesc = PlayerDesc;
                 AActor* SpawnedActor = nullptr;
                 bool bBound = false;
 
                 // 本地玩家优先绑定现有 Pawn，避免与 GameMode 默认生成逻辑重复。
-                if (PlayerDesc.PlayerId == ClientId && World)
+                if (PlayerDesc.ClientId == ClientId && World)
                 {
                     if (APlayerController* LocalPC = World->GetFirstPlayerController())
                     {
@@ -281,6 +282,10 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
                         {
                             bBound = Registry->RegisterExistingPlayerActor(PlayerDesc.PlayerId, ExistingPawn);
                             SpawnedActor = ExistingPawn;
+                            if (bBound)
+                            {
+                                Registry->MoveActorToClientSpawnPoint(PlayerDesc.ClientId, ExistingPawn);
+                            }
                         }
                     }
                 }
@@ -292,7 +297,12 @@ void ULockstepSubsystem::HandleIncomingPacket(const FLockstepPacket& Packet)
 
                 if (bBound)
                 {
-                    OnPlayerSpawn.Broadcast(PlayerDesc);
+                    if (IsValid(SpawnedActor))
+                    {
+                        ResolvedPlayerDesc.SpawnLocation = SpawnedActor->GetActorLocation();
+                        ResolvedPlayerDesc.SpawnRotation = SpawnedActor->GetActorRotation();
+                    }
+                    OnPlayerSpawn.Broadcast(ResolvedPlayerDesc);
                     SendPlayerSpawnAck(PlayerDesc.PlayerId);
                 }
                 else

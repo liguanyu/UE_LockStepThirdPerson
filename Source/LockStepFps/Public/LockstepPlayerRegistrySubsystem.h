@@ -18,6 +18,12 @@ public:
     bool RegisterExistingPlayerActor(int32 PlayerId, AActor* Actor);
 
     UFUNCTION(BlueprintCallable, Category = "Lockstep")
+    bool TryGetSpawnTransformForClientId(int32 ClientId, FTransform& OutTransform) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Lockstep")
+    bool MoveActorToClientSpawnPoint(int32 ClientId, AActor* Actor) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Lockstep")
     bool SpawnOrGetPlayerActor(const FLockstepPlayerDesc& PlayerDesc, AActor*& OutActor);
 
     UFUNCTION(BlueprintCallable, Category = "Lockstep")

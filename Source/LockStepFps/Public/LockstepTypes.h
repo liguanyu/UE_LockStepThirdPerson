@@ -27,6 +27,9 @@ struct FLockstepPlayerDesc
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
+    int32 ClientId = -1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
     int32 PlayerId = -1;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockstep")
