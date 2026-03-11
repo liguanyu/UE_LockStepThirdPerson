@@ -74,7 +74,7 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
             }
         }
 
-        // PrintLog(FString::Printf(TEXT("Accumulator=%f"), Accumulator));
+        PrintLog(FString::Printf(TEXT("Accumulator=%f"), Accumulator));
         // 仍保留广播事件，便于蓝图额外监听。
         OnSimTick.Broadcast(CurrentFrame, Inputs);
         ++CurrentFrame;
