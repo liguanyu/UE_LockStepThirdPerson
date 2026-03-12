@@ -62,7 +62,8 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
                     continue;
                 }
 
-                PrintLog(FString::Printf(TEXT("Applying input for PlayerId=%d at Frame=%d, moveX=%f"), Input.PlayerId, CurrentFrame, Input.MoveAxis.X));
+                PrintLog(FString::Printf(TEXT("Applying input for PlayerId=%d at Frame=%d, move=(%f, %f), look=(%f, %f)"),
+                    Input.PlayerId, CurrentFrame, Input.MoveAxis.X, Input.MoveAxis.Y, Input.LookAxis.X, Input.LookAxis.Y));
                 if (TargetActor->GetClass()->ImplementsInterface(ULockstepControllablePawnInterface::StaticClass()))
                 {
                     ILockstepControllablePawnInterface::Execute_ApplyLockstepInput(TargetActor, Input);
@@ -74,7 +75,7 @@ void ULockstepSimulationDriverSubsystem::Tick(const float DeltaTime)
             }
         }
 
-        PrintLog(FString::Printf(TEXT("Accumulator=%f"), Accumulator));
+        // PrintLog(FString::Printf(TEXT("Accumulator=%f"), Accumulator));
         // 仍保留广播事件，便于蓝图额外监听。
         OnSimTick.Broadcast(CurrentFrame, Inputs);
         ++CurrentFrame;
