@@ -6,7 +6,7 @@
 #include "LockstepInputCollectorComponent.generated.h"
 
 UCLASS(ClassGroup=(Lockstep), BlueprintType, Blueprintable, meta=(BlueprintSpawnableComponent))
-class LOCKSTEPFPS_API ULockstepInputCollectorComponent : public UActorComponent
+class LOCKSTEPTHIRDPERSON_API ULockstepInputCollectorComponent : public UActorComponent
 {
     GENERATED_BODY()
 

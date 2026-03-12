@@ -13,7 +13,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLockstepPlayerSpawnSignature, const
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLockstepRoomClosedSignature, int32, ReasonCode);
 
 UCLASS()
-class LOCKSTEPFPS_API ULockstepSubsystem : public UGameInstanceSubsystem
+class LOCKSTEPTHIRDPERSON_API ULockstepSubsystem : public UGameInstanceSubsystem
 {
     GENERATED_BODY()
 

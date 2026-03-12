@@ -10,7 +10,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FLockstepSimTickSignature, int32, FrameIndex, const TArray<FLockstepInputFrame>&, Inputs);
 
 UCLASS(Config=Game)
-class LOCKSTEPFPS_API ULockstepSimulationDriverSubsystem : public UWorldSubsystem, public FTickableGameObject
+class LOCKSTEPTHIRDPERSON_API ULockstepSimulationDriverSubsystem : public UWorldSubsystem, public FTickableGameObject
 {
     GENERATED_BODY()
 

@@ -9,7 +9,7 @@ class UArrowComponent;
 class USceneComponent;
 
 UCLASS(BlueprintType, Blueprintable)
-class LOCKSTEPFPS_API ALockstepSpawnPoint : public AActor
+class LOCKSTEPTHIRDPERSON_API ALockstepSpawnPoint : public AActor
 {
     GENERATED_BODY()
 

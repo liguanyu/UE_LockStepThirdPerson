@@ -9,7 +9,7 @@
 class AActor;
 
 UCLASS(Config=Game)
-class LOCKSTEPFPS_API ULockstepPlayerRegistrySubsystem : public UWorldSubsystem
+class LOCKSTEPTHIRDPERSON_API ULockstepPlayerRegistrySubsystem : public UWorldSubsystem
 {
     GENERATED_BODY()
 

@@ -1,13 +1,13 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-public class LockStepFpsTarget : TargetRules
+public class LockStepThirdPersonTarget : TargetRules
 {
-    public LockStepFpsTarget(TargetInfo Target) : base(Target)
+    public LockStepThirdPersonTarget(TargetInfo Target) : base(Target)
     {
         Type = TargetType.Game;
         DefaultBuildSettings = BuildSettingsVersion.V6;
         IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
-        ExtraModuleNames.Add("LockStepFps");
+        ExtraModuleNames.Add("LockStepThirdPerson");
     }
 }

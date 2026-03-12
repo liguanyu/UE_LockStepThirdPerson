@@ -1,8 +1,8 @@
 using UnrealBuildTool;
 
-public class LockStepFps : ModuleRules
+public class LockStepThirdPerson : ModuleRules
 {
-    public LockStepFps(ReadOnlyTargetRules Target) : base(Target)
+    public LockStepThirdPerson(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 

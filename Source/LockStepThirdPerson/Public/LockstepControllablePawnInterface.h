@@ -7,12 +7,12 @@
 #include "LockstepControllablePawnInterface.generated.h"
 
 UINTERFACE(BlueprintType, Blueprintable)
-class LOCKSTEPFPS_API ULockstepControllablePawnInterface : public UInterface
+class LOCKSTEPTHIRDPERSON_API ULockstepControllablePawnInterface : public UInterface
 {
     GENERATED_BODY()
 };
 
-class LOCKSTEPFPS_API ILockstepControllablePawnInterface
+class LOCKSTEPTHIRDPERSON_API ILockstepControllablePawnInterface
 {
     GENERATED_BODY()
 

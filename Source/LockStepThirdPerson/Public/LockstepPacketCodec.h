@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "LockstepTypes.h"
 
-class LOCKSTEPFPS_API FLockstepPacketCodec
+class LOCKSTEPTHIRDPERSON_API FLockstepPacketCodec
 {
 public:
     static bool Encode(const FLockstepPacket& Packet, TArray<uint8>& OutBytes);
