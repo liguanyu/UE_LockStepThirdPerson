@@ -32,55 +32,9 @@
   ![4](Note/consume.png)
 
 ## 当前工程同步时序
+  ![流程图](Note/mermaid.png)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Local as Local Player (本地玩家)
-    participant Client as ULockstepSubsystem
-    participant Relay as Relay Server (中继服务器)
-    participant Registry as PlayerRegistry
-    participant Sim as SimulationDriver
-    participant Pawn as Pawn
 
-    Note over Local,Client: Register Flow (注册流程)
-    Local->>Client: Connect (连接)
-    Client->>Relay: Hello
-    Relay-->>Client: Welcome
-
-    Local->>Client: SendJoinRequest()
-    Client->>Relay: Join Request (加入请求)
-    Relay-->>Client: Join Accept (加入确认)
-
-    Relay-->>Client: Player Spawn (玩家生成)
-    loop Each Player (每个玩家)
-        Client->>Registry: Register or Spawn Actor (注册或生成角色)
-        Registry-->>Client: Actor Ready (角色已就绪)
-        Client->>Relay: Player Spawn Ack (玩家生成确认)
-    end
-
-    Local->>Client: SendReady()
-    Client->>Relay: Ready (准备完成)
-    Relay-->>Client: Start (开始)
-
-    Local->>Sim: StartSimulation()
-
-    Note over Local,Client: Lockstep Flow (帧同步流程)
-    loop Each Logic Frame (每个逻辑帧)
-        Local->>Local: Collect Input (采集输入)
-        Local->>Client: Submit Input Frame (提交输入帧)
-        Client->>Relay: Report Input (输入上报)
-        Relay-->>Client: Input Bundle (输入帧集合)
-        Client->>Client: Cache Input (缓存输入)
-
-        Sim->>Client: ConsumeFrameInputs(CurrentFrame)
-        alt Frame Exists (当前帧存在输入)
-            Sim->>Registry: FindPlayerActor(PlayerId)
-            Registry-->>Sim: Return Actor (返回角色)
-            Sim->>Pawn: ApplyLockstepInput(InputFrame)
-            Sim->>Sim: Broadcast and Advance (广播并推进帧号)
-        else Frame Missing (当前帧缺少输入)
-            Sim->>Sim: Wait For Packet (等待网络包)
-        end
-    end
-```
+## TODO 后续优化方向
+1. 客户端缓冲buffer优化：当前实现是每帧收到输入包就推进，缺少缓冲区设计，容易受网络波动影响。可以设计一个滑动窗口，允许客户端提前收到未来几帧的输入，保证即使有短暂丢包也能继续推进。
+2. 服务器乐观收集：当前服务器是等所有玩家输入齐了才广播，可能会有一个慢玩家拖慢整体节奏。如果某个玩家在规定时间内没有输入，就忽略推进，保证整体流畅性。
