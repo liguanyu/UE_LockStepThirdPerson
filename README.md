@@ -2,6 +2,7 @@
 
 ## 说明
 
+- 基于ue官方的ThirdPerson模版进行开发
 - 当前实现是服务端汇总 `InputBundle` 后，客户端按固定步长消费，不走UE官方的Replication。
 
 # Server代码说明
